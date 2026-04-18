@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: odoo_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: odoo
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo_password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - odoo_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -d odoo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  odoo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: odoo_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8069:8069"
+      - "8072:8072"
+    environment:
+      HOST: db
+      PORT: 5432
+      USER: odoo
+      PASSWORD: odoo_password
+    # "--init base" installs core modules on first boot
+    command: odoo --database odoo --init base --without-demo all
+    volumes:
+      - odoo_data:/var/lib/odoo
+      - ./addons:/mnt/extra-addons
+    networks:
+      - odoo_net
+
+volumes:
+  db_data:
+    name: odoo_postgres_data
+  odoo_data:
+    name: odoo_filestore
+
+networks:
+  odoo_net:
+    name: odoo_network
+    driver: bridge
